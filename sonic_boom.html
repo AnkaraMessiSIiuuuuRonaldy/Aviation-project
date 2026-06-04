@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Звуковой удар — конус Маха</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: linear-gradient(160deg, #07111e 0%, #0f2236 100%);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+  padding: 16px;
+}
+.card {
+  background: rgba(10,22,40,0.85);
+  backdrop-filter: blur(10px);
+  border-radius: 2rem;
+  box-shadow: 0 30px 60px -10px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(255,255,255,0.09);
+  padding: 24px 24px 28px;
+  max-width: 1200px;
+  width: 100%;
+}
+h2 {
+  color: #cde6ff;
+  font-weight: 400;
+  font-size: 1.25rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+  padding-left: 12px;
+  border-left: 4px solid #f5a623;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+h2 .badge {
+  font-size: 0.85rem;
+  background: #1e3f62;
+  padding: 3px 12px;
+  border-radius: 40px;
+  color: #9fd3ff;
+  letter-spacing: 0.5px;
+}
+.canvas-wrap {
+  border-radius: 20px;
+  background: #08131f;
+  box-shadow: inset 0 0 40px rgba(0,0,0,0.9);
+  overflow: hidden;
+}
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  cursor: crosshair;
+}
+.controls {
+  margin-top: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: flex-end;
+  justify-content: center;
+}
+.slider-group {
+  flex: 1 1 220px;
+  min-width: 180px;
+}
+.slider-group label {
+  display: flex;
+  justify-content: space-between;
+  color: #a8d0f5;
+  font-size: 0.88rem;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  margin-bottom: 7px;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed #2a4e72;
+}
+.slider-group label span {
+  background: #1a3854;
+  padding: 2px 11px;
+  border-radius: 20px;
+  color: #f0f9ff;
+  font-weight: 600;
+}
+input[type=range] {
+  width: 100%;
+  height: 7px;
+  background: linear-gradient(90deg, #2e6898, #c09030);
+  border-radius: 10px;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px; height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(100,200,255,0.7), 0 0 0 3px #1e3f62;
+  border: 2px solid #f5a04a;
+  transition: 0.06s;
+}
+.stats-bar {
+  background: rgba(10,25,44,0.9);
+  border: 1px solid #2a5070;
+  border-radius: 40px;
+  padding: 10px 24px;
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+  justify-content: center;
+  flex: 2 1 400px;
+}
+.stat { display: flex; flex-direction: column; align-items: center; }
+.stat-label { color: #7eabd5; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-value { color: #ffe580; font-weight: 700; font-size: 1.3rem; font-family: monospace; }
+.stat-unit { color: #5e8bb5; font-size: 0.7rem; }
+.legend {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  font-size: 0.82rem;
+  color: #7aafd0;
+}
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-swatch {
+  width: 28px; height: 6px; border-radius: 3px;
+}
+.aircraft-select {
+  flex: 1 1 180px;
+  min-width: 160px;
+}
+.aircraft-select label {
+  display: block;
+  color: #a8d0f5;
+  font-size: 0.88rem;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  margin-bottom: 7px;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed #2a4e72;
+}
+select {
+  width: 100%;
+  background: #0e2035;
+  color: #cde6ff;
+  border: 1px solid #2a5070;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 0.92rem;
+  cursor: pointer;
+  outline: none;
+}
+select:focus { border-color: #4a90c8; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>✦ СВЕРХЗВУКОВОЙ ПОЛЁТ: КОНУС МАХА И ЗВУКОВОЙ УДАР <span class="badge">M &gt; 1</span></h2>
+  <div class="canvas-wrap">
+    <canvas id="c" width="1100" height="580"></canvas>
+  </div>
+
+  <div class="controls">
+    <div class="aircraft-select">
+      <label>✈ Самолёт</label>
+      <select id="acSelect">
+        <option value="custom">— Свои параметры —</option>
+        <option value="f104">F-104  (L=16.66м, M=2.40, H=15км)</option>
+        <option value="f4">F-4  (L=19.20м, M=1.186, H=30м)</option>
+        <option value="sr71">SR-71  (L=32.74м, M=3.20, H=24км)</option>
+        <option value="concorde" selected>Concorde  (L=62.10м, M=2.02, H=16км)</option>
+        <option value="shuttle">Shuttle  (L=37.24м, M=1.50, H=18км)</option>
+      </select>
+    </div>
+    <div class="slider-group">
+      <label>✈ Высота H <span id="lblH">16.0 км</span></label>
+      <input type="range" id="slH" min="0.1" max="30" value="16" step="0.1">
+    </div>
+    <div class="slider-group">
+      <label>⚡ Число Маха <span id="lblM">2.02</span></label>
+      <input type="range" id="slM" min="1.01" max="4.0" value="2.02" step="0.01">
+    </div>
+    <div class="stats-bar">
+      <div class="stat"><span class="stat-label">ΔP (b=0)</span><span class="stat-value" id="stDP">—</span><span class="stat-unit">Па</span></div>
+      <div class="stat"><span class="stat-label">Угол Маха μ</span><span class="stat-value" id="stMu">—</span><span class="stat-unit">°</span></div>
+      <div class="stat"><span class="stat-label">Ширина 90 Па</span><span class="stat-value" id="stW">—</span><span class="stat-unit">км</span></div>
+    </div>
+  </div>
+
+  <div class="legend" id="legend"></div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+// ─── Данные самолётов ────────────────────────────────────────────────────────
+// L[м], H[м], M, I[м⁴], p_H[Па], rho_H[кг/м³]
+const AIRCRAFT = {
+  f104:    { L:16.66,  H:15000, M:2.40,  I:0.423338,   pH:12044, rhoH:0.194, name:'F-104' },
+  f4:      { L:19.20,  H:30,    M:1.186, I:1195.973721, pH:101000,rhoH:1.22,  name:'F-4'   },
+  sr71:    { L:32.74,  H:24000, M:3.20,  I:17.905287,  pH:2930,  rhoH:0.04,  name:'SR-71' },
+  concorde:{ L:62.10,  H:16000, M:2.02,  I:61.316938,  pH:10287, rhoH:0.167, name:'Concorde'},
+  shuttle: { L:37.24,  H:18000, M:1.50,  I:66.211140,  pH:7500,  rhoH:0.121, name:'Shuttle'}
+};
+
+// ─── Стандартная атмосфера (ISA) ─────────────────────────────────────────────
+function isa(hm) {
+  const g=9.80665, R=287.05, gamma=1.4;
+  let T,p,rho;
+  if(hm<=11000){
+    T=288.15-0.0065*hm;
+    p=101325*Math.pow(T/288.15,5.2561);
+  } else if(hm<=20000){
+    T=216.65;
+    p=22632.1*Math.exp(-g*(hm-11000)/(R*T));
+  } else if(hm<=32000){
+    T=216.65+0.001*(hm-20000);
+    p=5474.89*Math.pow(T/216.65,-34.1632);
+  } else {
+    T=228.65+0.0028*(hm-32000);
+    p=868.019*Math.pow(T/228.65,-17.0816);
+  }
+  rho=p/(R*T);
+  return {T,p,rho};
+}
+
+// ─── Формула ΔP ─────────────────────────────────────────────────────────────
+// ΔP = 1.046 · p(H) · (M²-1)^(3/8) · √(ρ0/ρH) · I^(1/4) · R^(-3/4)
+//    · G(M, H/L)
+// G = 0.8147 · (M-1)^(-0.1206) · (H/L)^(0.0535)
+// R = √((H + α·L)² + b²),  α=12
+const alpha = 12;
+const rho0 = 1.225; // кг/м³
+
+function calcDP(H_m, M, I, L_m, pH, rhoH, b_m) {
+  const R = Math.sqrt(Math.pow(H_m + alpha*L_m, 2) + b_m*b_m);
+  const G = 0.8147 * Math.pow(M-1,-0.1206) * Math.pow((H_m/L_m),0.0535);
+  const dp = 1.046 * pH
+    * Math.pow(M*M-1, 3/8)
+    * Math.sqrt(rho0/rhoH)
+    * Math.pow(I, 1/4)
+    * Math.pow(R, -3/4)
+    * G;
+  return dp;
+}
+
+// ─── Состояние ───────────────────────────────────────────────────────────────
+let state = {
+  H_km: 16, M: 2.02, key: 'concorde',
+  L_m:62.10, I:61.316938
+};
+
+function getAtmo(H_km){
+  const {p,rho} = isa(H_km*1000);
+  return {pH:p, rhoH:rho};
+}
+
+// ─── DOM ─────────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const slH = document.getElementById('slH');
+const slM = document.getElementById('slM');
+const lblH = document.getElementById('lblH');
+const lblM = document.getElementById('lblM');
+const stDP = document.getElementById('stDP');
+const stMu = document.getElementById('stMu');
+const stW  = document.getElementById('stW');
+const acSel= document.getElementById('acSelect');
+
+// ─── Уровни давления для контуров ────────────────────────────────────────────
+const LEVELS = [
+  { dp:2000, color:'#ff2020', label:'≥2000 Па' },
+  { dp:500,  color:'#ff2020', label:'500 Па'   },
+  { dp:200,  color:'#ff2020', label:'200 Па'   },
+  { dp:100,  color:'#ff2020', label:'100 Па'   },
+  { dp:90,   color:'#ff2020', label:'90 Па'    },
+  { dp:50,   color:'#ff2020', label:'50 Па'    },
+  { dp:20,   color:'#ff2020', label:'20 Па'    },
+  { dp:10,   color:'#ff2020', label:'10 Па'    },
+];
+
+// ─── Найти ширину изоконтура (b при заданном DP) ─────────────────────────────
+function findB(targetDP, H_m, M, I, L_m, pH, rhoH) {
+  // Ищем b методом бисекции
+  const dp0 = calcDP(H_m, M, I, L_m, pH, rhoH, 0);
+  if(dp0 < targetDP) return null; // даже в центре меньше порога
+  let lo=0, hi=H_m*5;
+  for(let i=0;i<60;i++){
+    const mid=(lo+hi)/2;
+    const dp=calcDP(H_m,M,I,L_m,pH,rhoH,mid);
+    if(dp>targetDP) lo=mid; else hi=mid;
+  }
+  return (lo+hi)/2;
+}
+
+// ─── Отрисовка ───────────────────────────────────────────────────────────────
+function draw() {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  const { H_km, M, L_m, I } = state;
+  const H_m = H_km * 1000;
+  let { pH, rhoH } = getAtmo(H_km);
+
+  // Если выбран конкретный самолёт — берём его данные из таблицы
+  if(state.key !== 'custom'){
+    const ac = AIRCRAFT[state.key];
+    pH = ac.pH; rhoH = ac.rhoH;
+  }
+
+  const dp0 = calcDP(H_m, M, I, L_m, pH, rhoH, 0);
+  const muDeg = Math.asin(1/M) * 180/Math.PI;
+
+  // ─ Небо ─
+  const skyGrad = ctx.createLinearGradient(0,0,0,H*0.82);
+  skyGrad.addColorStop(0,'#06101c');
+  skyGrad.addColorStop(1,'#1a3b56');
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(0,0,W,H);
+
+  // ─ Земля ─
+  const groundY = H - 52;
+  const gGrad = ctx.createLinearGradient(0,groundY,0,H);
+  gGrad.addColorStop(0,'#2e1d10');
+  gGrad.addColorStop(1,'#1a0e06');
+  ctx.fillStyle = gGrad;
+  ctx.fillRect(0,groundY,W,H-groundY);
+
+  ctx.strokeStyle = '#c8a570';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(0,groundY); ctx.lineTo(W,groundY);
+  ctx.stroke();
+
+  // полосы грунта
+  ctx.fillStyle = '#4a3020';
+  for(let i=0;i<18;i++){
+    ctx.fillRect(40+i*62, groundY+6, 24, 3+(i%3));
+  }
+
+  // ─ Параметры компоновки ─
+  const KM = 38; // px/км
+  const planeX = 260;
+  const planeY = Math.max(28, groundY - H_km*KM);
+
+  // ─ Волновые сферы ─
+  ctx.save();
+  ctx.setLineDash([7,7]);
+  for(let r=1;r<=5;r++){
+    const rad = r * (28 + H_km*1.5);
+    ctx.beginPath();
+    ctx.arc(planeX, planeY, rad, 0, 2*Math.PI);
+    ctx.strokeStyle = `rgba(100,190,255,${0.35-r*0.05})`;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  // ─ Конус Маха ─
+  const muRad = Math.asin(1/M);
+  const coneLen = Math.min(600, H_km*KM + 80);
+
+  ctx.save();
+  ctx.shadowColor='#f5a020'; ctx.shadowBlur=18;
+  ctx.strokeStyle='#f5a332'; ctx.lineWidth=2.8;
+  // Конус идёт назад (влево от самолёта)
+  // Угол конуса от горизонтали = (90° - mu) если смотреть вертикально
+  // Полуугол конуса при вершине от оси полёта = mu
+  // Ось полёта горизонтальная (x). Конус раскрывается назад.
+  // Линия конуса: от плоскости (planeX,planeY) под углом mu к горизонтали, вниз и назад
+  const cx1 = planeX - coneLen;
+  const cy1 = planeY + coneLen * Math.tan(muRad);
+  const cy2 = planeY - coneLen * Math.tan(muRad);
+  ctx.beginPath(); ctx.moveTo(planeX,planeY); ctx.lineTo(cx1,cy1); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(planeX,planeY); ctx.lineTo(cx1,cy2); ctx.stroke();
+
+  // штриховые внутренние линии
+  ctx.strokeStyle='rgba(245,160,50,0.4)'; ctx.lineWidth=1.3;
+  ctx.setLineDash([6,7]);
+  const f=0.6;
+  ctx.beginPath(); ctx.moveTo(planeX,planeY); ctx.lineTo(cx1*f+planeX*(1-f), cy1*f+planeY*(1-f)); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(planeX,planeY); ctx.lineTo(cx1*f+planeX*(1-f), cy2*f+planeY*(1-f)); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  // ─ Подпись угла μ ─
+  ctx.save();
+  ctx.font='bold 13px "Segoe UI"';
+  ctx.fillStyle='#fedb9f';
+  ctx.shadowColor='#000'; ctx.shadowBlur=5;
+  ctx.fillText(`μ = ${muDeg.toFixed(1)}°`, planeX - 115, planeY - 8);
+  ctx.restore();
+
+  // ─ Самолёт ─
+  ctx.save();
+  ctx.shadowColor='rgba(255,255,255,0.7)'; ctx.shadowBlur=18;
+  ctx.translate(planeX, planeY);
+  // фюзеляж
+  ctx.beginPath();
+  ctx.moveTo(20,0); ctx.lineTo(-18,0);
+  ctx.lineWidth=5; ctx.strokeStyle='#ddeeff'; ctx.stroke();
+  // нос
+  ctx.beginPath();
+  ctx.moveTo(20,0); ctx.lineTo(28,0);
+  ctx.lineWidth=3; ctx.strokeStyle='#ffffff'; ctx.stroke();
+  // крылья
+  ctx.beginPath();
+  ctx.moveTo(4,-14); ctx.lineTo(10,0); ctx.lineTo(4,14);
+  ctx.fillStyle='#b8d8f0'; ctx.fill();
+  // хвост
+  ctx.beginPath();
+  ctx.moveTo(-14,-7); ctx.lineTo(-18,0); ctx.lineTo(-14,7);
+  ctx.fillStyle='#9ac0e0'; ctx.fill();
+  ctx.restore();
+
+  // ─ Вертикальная линия H ─
+  ctx.save();
+  ctx.strokeStyle='rgba(80,160,240,0.35)';
+  ctx.lineWidth=1.5;
+  ctx.setLineDash([6,6]);
+  ctx.beginPath(); ctx.moveTo(planeX,planeY); ctx.lineTo(planeX,groundY); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='#7ab0e0';
+  ctx.font='11px "Segoe UI"';
+  ctx.fillText(`H = ${H_km.toFixed(1)} км`, planeX+6, (planeY+groundY)/2);
+  ctx.restore();
+
+  // ─ Одна подкова на земле — граница 90 Па ─
+  const b90m = findB(90, H_m, M, I, L_m, pH, rhoH);
+  const validLevels = b90m !== null ? [{ dp:90, color:'#ff2020', b_km: b90m/1000 }] : [];
+
+  if(b90m !== null){
+    const bPx = b90m / 1000 * KM;
+    const gy = groundY;
+    const cx = planeX;
+
+    // Заливка
+    ctx.save();
+    ctx.globalAlpha = 0.13;
+    ctx.fillStyle = '#ff2020';
+    ctx.beginPath();
+    ctx.moveTo(cx - bPx, gy - 14);
+    ctx.quadraticCurveTo(cx, gy - 14 - Math.min(bPx*0.18,35), cx + bPx, gy - 14);
+    ctx.lineTo(cx + bPx, gy + 4);
+    ctx.quadraticCurveTo(cx, gy + 4 + Math.min(bPx*0.08,12), cx - bPx, gy + 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // Контур
+    ctx.save();
+    ctx.strokeStyle = '#ff2020';
+    ctx.lineWidth = 2.8;
+    ctx.shadowColor = '#ff2020';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.moveTo(cx - bPx, gy - 18);
+    ctx.lineTo(cx - bPx, gy + 8);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + bPx, gy - 18);
+    ctx.lineTo(cx + bPx, gy + 8);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - bPx, gy - 14);
+    ctx.quadraticCurveTo(cx, gy - 14 - Math.min(bPx*0.18,35), cx + bPx, gy - 14);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - bPx, gy + 4);
+    ctx.quadraticCurveTo(cx, gy + 4 + Math.min(bPx*0.08,12), cx + bPx, gy + 4);
+    ctx.stroke();
+    ctx.restore();
+
+    // Подпись
+    if(cx + bPx + 5 < W - 5){
+      ctx.save();
+      ctx.font = 'bold 11px monospace';
+      ctx.fillStyle = '#ff6060';
+      ctx.fillText('90 Па', cx + bPx + 5, gy - 5);
+      ctx.restore();
+    }
+  }
+
+  // ─ Линия-соединитель самолёт→земля (ударный луч) ─
+  const b90 = validLevels.find(l=>l.dp===90);
+  if(b90){
+    const bPx = b90.b_km * KM;
+    ctx.save();
+    ctx.strokeStyle='rgba(245,180,50,0.25)';
+    ctx.lineWidth=1.5;
+    ctx.setLineDash([4,8]);
+    ctx.beginPath();
+    ctx.moveTo(planeX,planeY);
+    ctx.lineTo(planeX+bPx, groundY-14);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(planeX,planeY);
+    ctx.lineTo(planeX-bPx, groundY-14);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  // ─ Центральное давление (подпись в центре подковы) ─
+  ctx.save();
+  ctx.font='bold 12px "Segoe UI"';
+  ctx.fillStyle='#ffe266';
+  ctx.shadowColor='#000'; ctx.shadowBlur=6;
+  ctx.textAlign='center';
+  ctx.fillText(`ΔP₀ = ${dp0.toFixed(1)} Па`, planeX, groundY - 35);
+  ctx.textAlign='left';
+  ctx.restore();
+
+  // ─ Подпись "ЗЕМЛЯ" ─
+  ctx.font='11px "Segoe UI"'; ctx.fillStyle='#8a6a44';
+  ctx.fillText('◄ ПОВЕРХНОСТЬ ЗЕМЛИ', W/2 - 85, H - 10);
+
+  // ─ Обновить статистику ─
+  stDP.textContent = dp0.toFixed(1);
+  stMu.textContent = muDeg.toFixed(1);
+  stW.textContent = b90m ? (b90m/500).toFixed(2) : '—'; // полная ширина = 2*b, /1000*2
+
+  buildLegend(validLevels);
+}
+
+function buildLegend(validLevels){
+  const leg = document.getElementById('legend');
+  leg.innerHTML = '';
+  for(const lv of [...validLevels].sort((a,b)=>b.dp-a.dp)){
+    const item = document.createElement('div');
+    item.className='legend-item';
+    item.innerHTML=`<div class="legend-swatch" style="background:${lv.color}"></div> ${lv.dp} Па &nbsp; <span style="color:#9cc0e0">(±${lv.b_km.toFixed(2)} км)</span>`;
+    leg.appendChild(item);
+  }
+}
+
+// ─── Обновление состояния ────────────────────────────────────────────────────
+function applyAircraft(key){
+  if(key==='custom') return;
+  const ac = AIRCRAFT[key];
+  state.key = key;
+  state.H_km = ac.H/1000;
+  state.M = ac.M;
+  state.L_m = ac.L;
+  state.I = ac.I;
+  slH.value = state.H_km;
+  slM.value = state.M;
+  lblH.textContent = state.H_km.toFixed(1)+' км';
+  lblM.textContent = state.M.toFixed(2);
+  draw();
+}
+
+slH.addEventListener('input', ()=>{
+  state.H_km = parseFloat(slH.value);
+  state.key = 'custom';
+  acSel.value = 'custom';
+  lblH.textContent = state.H_km.toFixed(1)+' км';
+  const {pH,rhoH} = getAtmo(state.H_km);
+  // при пользовательском режиме используем ISA + I от Concorde как пример
+  draw();
+});
+
+slM.addEventListener('input', ()=>{
+  state.M = parseFloat(slM.value);
+  state.key = 'custom';
+  acSel.value = 'custom';
+  lblM.textContent = state.M.toFixed(2);
+  draw();
+});
+
+acSel.addEventListener('change', ()=>{
+  applyAircraft(acSel.value);
+});
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+applyAircraft('concorde');
+
+window.addEventListener('resize', draw);
+})();
+</script>
+</body>
+</html>
